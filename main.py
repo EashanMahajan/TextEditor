@@ -71,7 +71,7 @@ def change_color(event=None):
     text_box.config(fg=selected_color)
     lbl_color.config(text=f"Font:\n{selected_color}")
 
-def call_groq_api(text, parent_window):
+def call_groq_api(text):
     if not GROQ_API_KEY:
         messagebox.showerror("Error", "GROQ_API_KEY not found. Please set the environment variable.")
         return 0
@@ -81,6 +81,20 @@ def call_groq_api(text, parent_window):
         "Content-Type": "application/json"
     }
 
+    # data = {
+    #     "model": "llama3-8b-8192",
+    #     "messages" : [
+    #         {"role": "system", "content": "You are a helpful assistant that summarizes text."},
+    #         {"role": "user", "content": f"Summarize this text:\n{text}"}
+    #     ],
+    #     "temperature": 0.3,
+    #     "max_tokens": 300
+    # }
+    # model_info_list = [headers, data]
+    return headers
+
+def summary_results(text, parent_window):
+    headers = call_groq_api(text)
     data = {
         "model": "llama3-8b-8192",
         "messages" : [
@@ -90,7 +104,6 @@ def call_groq_api(text, parent_window):
         "temperature": 0.3,
         "max_tokens": 300
     }
-
     try:
         response = requests.post(GROQ_API_URL, headers=headers, data = json.dumps(data))
         response.raise_for_status()
@@ -121,14 +134,65 @@ def display_summary_window(parent_window, summary):
     summary_text.pack(side="left", expand=True, fill="both")
     scrollbar.pack(side="right", fill="y")
 
-
 def summarize_text(text_box, parent_window):
     text = text_box.get("1.0", tk.END).strip()
     if not text:
         messagebox.showwarning("There is no text to summarize.")
         return 0
 
-    thread = threading.Thread(target=call_groq_api, args=(text, parent_window))
+    thread = threading.Thread(target=summary_results, args=(text, parent_window))
+    thread.daemon = True
+    thread.start()
+
+def sentiment_analysis_results(text, parent_window):
+    headers = call_groq_api(text)
+    data = {
+    "model": "llama3-8b-8192",
+    "messages": [
+        {"role": "system", "content": "You are a helpful assistant that performs detailed sentiment analysis."},
+        {"role": "user", "content": f"Analyze the sentiment of this text. Indicate whether it is positive, negative, or neutral, and explain why:\n{text}"}
+    ],
+    "temperature": 0.3,
+    "max_tokens": 300
+    }
+
+    try:
+        response = requests.post(GROQ_API_URL, headers=headers, data=json.dumps(data))
+        response.raise_for_status()
+
+        result = response.json()
+        sentiment = result["choices"][0]["message"]["content"]
+        parent_window.after(0, lambda: display_sentiment_window(parent_window, sentiment))
+    
+    except requests.exceptions.RequestException as e:
+        messagebox.showerror("Network Error", f"Failed to connect to the API: {e}")
+    except KeyError:
+        messagebox.showerror("API Error", "The API response was not in the expected format.")
+    except Exception as e:
+        messagebox.showerror("An unexpected error occurred", f"Failed to analyze: {e}")
+
+
+def display_sentiment_window(parent_window, analysis):
+    analysis_window = tk.Toplevel(parent_window)
+    analysis_window.title("Sentiment Analysis")
+
+    analysis_text = tk.Text(analysis_window, wrap="word", font="Arial 12", bg="#f7f7f7", fg="Black")
+    analysis_text.insert(tk.END, analysis)
+    analysis_text.config(state="disabled") 
+    
+    scrollbar = ttk.Scrollbar(analysis_window, command=analysis_text.yview)
+    analysis_text.config(yscrollcommand=scrollbar.set)
+    
+    analysis_text.pack(side="left", expand=True, fill="both")
+    scrollbar.pack(side="right", fill="y")
+
+def analyze_sentiment(text_box, parent_window):
+    text = text_box.get("1.0", tk.END).strip()
+    if not text:
+        messagebox.showwarning("There is no text to analyze for sentiment.")
+        return 0
+
+    thread = threading.Thread(target=sentiment_analysis_results, args=(text, parent_window))
     thread.daemon = True
     thread.start()
 
@@ -146,17 +210,20 @@ text_box.bind("<KeyRelease>", count)
 text_box.focus_set()
 text_box.config(insertbackground="black")
 
+#Creating the buttons
 fr_buttons = tk.Frame(master=window, bg='#404d44')
 
 btn_open = tk.Button(master=fr_buttons, text="Open", width=10, bg='#91a18d', command=open_file)
 btn_save_as = tk.Button(master=fr_buttons, text="Save As", width=10, bg="#91a18d", command=save_file_as)
 btn_save = tk.Button(master=fr_buttons, text="Save", width=10, bg="#91a18d", command=save_file)
 btn_summarize = tk.Button(master=fr_buttons, text="Summarize Page", width=10, bg='#91a18d', command= lambda: summarize_text(text_box, window))
+btn_sentiment_analysis = tk.Button(master=fr_buttons, text="Sentiment Analysis Page", width=10, bg='#91a18d', command= lambda: analyze_sentiment(text_box, window))
 lbl_word_count = tk.Label(master=fr_buttons, text="Words:\n0")
 lbl_char_count = tk.Label(master=fr_buttons, text="Characters:\n0")
 lbl_font = tk.Label(master=fr_buttons, text="Font:\nArial 12")
 lbl_color = tk.Label(master=fr_buttons, text="Color:\n Black")
 
+#Adding in the fonts and colors
 font_list = ["Arial 12", "Arial 20", "TimesNewRoman 12", "TimesNewRoman 20"]
 font_dropdown = ttk.Combobox(fr_buttons, values=font_list, state="readonly")
 font_dropdown.set("Arial 12")
@@ -167,10 +234,12 @@ color_dropdown = ttk.Combobox(fr_buttons, values=color_list, state="readonly")
 color_dropdown.set("Black")
 color_dropdown.bind("<<ComboboxSelected>>", change_color)
 
+#Putting locations of buttons and dropdown menus
 btn_open.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
 btn_save_as.grid(row=2, column=0, sticky="nsew", padx=5, pady=10)
 btn_save.grid(row=3, column=0, sticky="nsew", padx=5, pady=5)
 btn_summarize.grid(row=4, column=0, sticky="nsew", padx=5, pady=5)
+btn_sentiment_analysis.grid(row=5, column=0, sticky="nsew", padx=5, pady=5)
 lbl_word_count.grid(row=6, column=0, sticky="nsew", padx=5, pady=5)
 lbl_char_count.grid(row=8, column=0, sticky="nsew", padx=5, pady=5)
 lbl_font.grid(row=10, column=0, sticky="nsew", padx=5, pady=5)
