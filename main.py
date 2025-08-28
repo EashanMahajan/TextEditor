@@ -214,7 +214,7 @@ btn_save.pack(side="left", padx=5, pady=5)
 btn_summarize = tk.Button(master=fr_buttons, text="Summarize Page", width=10, bg='#91a18d', command= lambda: summarize_text(text_box, window))
 btn_summarize.pack(side="left", padx=5, pady=5)
 
-btn_sentiment_analysis = tk.Button(master=fr_buttons, text="Sentiment Analysis Page", width=10, bg='#91a18d', command= lambda: analyze_sentiment(text_box, window))
+btn_sentiment_analysis = tk.Button(master=fr_buttons, text="Sentiment Analysis Page", width=15, bg='#91a18d', command= lambda: analyze_sentiment(text_box, window))
 btn_sentiment_analysis.pack(side="left", padx=5, pady=5)
 
 lbl_word_count = tk.Label(master=window, text="Words: 0")
