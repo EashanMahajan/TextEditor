@@ -73,38 +73,26 @@ def change_color(event=None):
 
 def call_groq_api(text):
     if not GROQ_API_KEY:
-        messagebox.showerror("Error", "GROQ_API_KEY not found. Please set the environment variable.")
-        return 0
+        raise ValueError("GROQ_API_KEY not found. Please set the environment variable.")
 
     headers = {
         "Authorization":f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
-
-    # data = {
-    #     "model": "llama3-8b-8192",
-    #     "messages" : [
-    #         {"role": "system", "content": "You are a helpful assistant that summarizes text."},
-    #         {"role": "user", "content": f"Summarize this text:\n{text}"}
-    #     ],
-    #     "temperature": 0.3,
-    #     "max_tokens": 300
-    # }
-    # model_info_list = [headers, data]
     return headers
 
 def summary_results(text, parent_window):
-    headers = call_groq_api(text)
-    data = {
-        "model": "llama3-8b-8192",
-        "messages" : [
-            {"role": "system", "content": "You are a helpful assistant that summarizes text."},
-            {"role": "user", "content": f"Summarize this text:\n{text}"}
-        ],
-        "temperature": 0.3,
-        "max_tokens": 300
-    }
     try:
+        headers = call_groq_api(text)
+        data = {
+            "model": "llama3-8b-8192",
+            "messages" : [
+                {"role": "system", "content": "You are a helpful assistant that summarizes text."},
+                {"role": "user", "content": f"Summarize this text:\n{text}"}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 300
+        }
         response = requests.post(GROQ_API_URL, headers=headers, data = json.dumps(data))
         response.raise_for_status()
 
@@ -113,6 +101,8 @@ def summary_results(text, parent_window):
 
         parent_window.after(0, lambda: display_summary_window(parent_window, summary))
 
+    except ValueError as e:
+        messagebox.showerror("Error", str(e))
     except requests.exceptions.RequestException as e:
         messagebox.showerror("Network Error", f"Failed to connect to the API: {e}")
     except KeyError:
@@ -163,7 +153,8 @@ def sentiment_analysis_results(text, parent_window):
         result = response.json()
         sentiment = result["choices"][0]["message"]["content"]
         parent_window.after(0, lambda: display_sentiment_window(parent_window, sentiment))
-    
+    except ValueError as e:
+        messagebox.showerror("Error", str(e))
     except requests.exceptions.RequestException as e:
         messagebox.showerror("Network Error", f"Failed to connect to the API: {e}")
     except KeyError:
@@ -199,52 +190,55 @@ def analyze_sentiment(text_box, parent_window):
 window = tk.Tk()
 window.title("Text Editor")
 window.configure(bg='#404d44')
-window.rowconfigure(0, weight=1)
-window.columnconfigure(1,weight=1)
+
+fr_buttons = tk.Frame(master=window, bg='#404d44')
+fr_buttons.pack(side="top", fill="x")
 
 text_box = tk.Text(master=window, font="Arial 12", bg="#e6f0e9", fg="black")
-text_box.grid(row=0, column=1, sticky="nsew")
+text_box.pack(expand=True, fill="both")
 
 text_box.bind("<KeyPress>", count)
 text_box.bind("<KeyRelease>", count)
 text_box.focus_set()
 text_box.config(insertbackground="black")
 
-#Creating the buttons
-fr_buttons = tk.Frame(master=window, bg='#404d44')
-
 btn_open = tk.Button(master=fr_buttons, text="Open", width=10, bg='#91a18d', command=open_file)
-btn_save_as = tk.Button(master=fr_buttons, text="Save As", width=10, bg="#91a18d", command=save_file_as)
-btn_save = tk.Button(master=fr_buttons, text="Save", width=10, bg="#91a18d", command=save_file)
-btn_summarize = tk.Button(master=fr_buttons, text="Summarize Page", width=10, bg='#91a18d', command= lambda: summarize_text(text_box, window))
-btn_sentiment_analysis = tk.Button(master=fr_buttons, text="Sentiment Analysis Page", width=10, bg='#91a18d', command= lambda: analyze_sentiment(text_box, window))
-lbl_word_count = tk.Label(master=fr_buttons, text="Words:\n0")
-lbl_char_count = tk.Label(master=fr_buttons, text="Characters:\n0")
-lbl_font = tk.Label(master=fr_buttons, text="Font:\nArial 12")
-lbl_color = tk.Label(master=fr_buttons, text="Color:\n Black")
+btn_open.pack(side="left", padx=5, pady=5)
 
-#Adding in the fonts and colors
+btn_save_as = tk.Button(master=fr_buttons, text="Save As", width=10, bg="#91a18d", command=save_file_as)
+btn_save_as.pack(side="left", padx=5, pady=5)
+
+btn_save = tk.Button(master=fr_buttons, text="Save", width=10, bg="#91a18d", command=save_file)
+btn_save.pack(side="left", padx=5, pady=5)
+
+btn_summarize = tk.Button(master=fr_buttons, text="Summarize Page", width=10, bg='#91a18d', command= lambda: summarize_text(text_box, window))
+btn_summarize.pack(side="left", padx=5, pady=5)
+
+btn_sentiment_analysis = tk.Button(master=fr_buttons, text="Sentiment Analysis Page", width=10, bg='#91a18d', command= lambda: analyze_sentiment(text_box, window))
+btn_sentiment_analysis.pack(side="left", padx=5, pady=5)
+
+lbl_word_count = tk.Label(master=window, text="Words: 0")
+lbl_word_count.pack(side="bottom", anchor="e", padx=10, pady=5)
+
+lbl_char_count = tk.Label(master=window, text="Characters: 0")
+lbl_char_count.pack(side="bottom", anchor="e", padx=10)
+
+lbl_font = tk.Label(master=fr_buttons, text="Font:")
+lbl_font.pack(side="left", padx=(15, 0), pady=5)
+
+lbl_color = tk.Label(master=fr_buttons, text="Color:")
+lbl_color.pack(side="left", padx=(15, 0), pady=5)
+
 font_list = ["Arial 12", "Arial 20", "TimesNewRoman 12", "TimesNewRoman 20"]
 font_dropdown = ttk.Combobox(fr_buttons, values=font_list, state="readonly")
 font_dropdown.set("Arial 12")
 font_dropdown.bind("<<ComboboxSelected>>", change_font)
+font_dropdown.pack(side="left", padx=5, pady=5)
 
 color_list = ["Black", "Red", "Blue", "Green", "Purple", "Yellow", "Pink", "Orange", "White", "Gray"]
 color_dropdown = ttk.Combobox(fr_buttons, values=color_list, state="readonly")
 color_dropdown.set("Black")
 color_dropdown.bind("<<ComboboxSelected>>", change_color)
-
-#Putting locations of buttons and dropdown menus
-btn_open.grid(row=1, column=0, sticky="nsew", padx=5, pady=5)
-btn_save_as.grid(row=2, column=0, sticky="nsew", padx=5, pady=10)
-btn_save.grid(row=3, column=0, sticky="nsew", padx=5, pady=5)
-btn_summarize.grid(row=4, column=0, sticky="nsew", padx=5, pady=5)
-btn_sentiment_analysis.grid(row=5, column=0, sticky="nsew", padx=5, pady=5)
-lbl_word_count.grid(row=6, column=0, sticky="nsew", padx=5, pady=5)
-lbl_char_count.grid(row=8, column=0, sticky="nsew", padx=5, pady=5)
-lbl_font.grid(row=10, column=0, sticky="nsew", padx=5, pady=5)
-font_dropdown.grid(row=12, column=0, sticky="nsew", padx=5, pady=5)
-color_dropdown.grid(row=14, column=0, sticky="nsew", padx=5, pady=5)
-fr_buttons.grid(row=0, column=0, sticky="ns")
+color_dropdown.pack(side="left", padx=5, pady=5)
 
 window.mainloop()
