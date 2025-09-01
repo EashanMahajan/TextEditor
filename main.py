@@ -347,11 +347,13 @@ btn_sentiment_analysis.pack(side="left", padx=5, pady=5)
 btn_paraphrase = tk.Button(fr_buttons, text="Paraphrase", command= lambda: paraphrase_button_clicked(parent_window=window), bg="#91a18d")
 btn_paraphrase.pack(side="left", padx=5, pady=5)
 
-lbl_word_count = tk.Label(master=window, text="Words: 0")
-lbl_word_count.pack(side="bottom", anchor="e", padx=10, pady=5)
+status_frame = tk.Frame(master=window)
+status_frame.pack(side="bottom", anchor="e", padx=10,pady=5)
+lbl_word_count = tk.Label(master=status_frame, text="Words: 0")
+lbl_word_count.pack(side="left", anchor="e", padx=5)
 
-lbl_char_count = tk.Label(master=window, text="Characters: 0")
-lbl_char_count.pack(side="bottom", anchor="e", padx=10)
+lbl_char_count = tk.Label(master=status_frame, text="Characters: 0")
+lbl_char_count.pack(side="right", anchor="e", padx=5)
 
 lbl_font = tk.Label(master=fr_buttons, text="Font:")
 lbl_font.pack(side="left", padx=(15, 0), pady=5)
