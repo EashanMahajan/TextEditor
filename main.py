@@ -17,6 +17,20 @@ client = Groq(api_key=GROQ_API_KEY)
 GROQ_API_URL = os.getenv("API_URL")
 
 current_file_path = None
+Tone_Options = {
+    "Simple": {
+        "instruction": "Simplify the vocabulary and sentence structure while preserving the original meaning. Make it easier to read.",
+        "temperature": 0.2
+    },
+    "Formal": {
+        "instruction": "Rewrite in a clear, professional, and formal tone while preserving the original meaning.",
+        "temperature": 0.2
+    },
+    "Creative": {
+        "instruction": "Make the writing more vivid and creative; feel free to enhance imagery and use expressive language while preserving meaning.",
+        "temperature": 0.7
+    }
+}
 
 def open_file():
     global current_file_path
@@ -85,7 +99,7 @@ def summary_results(text, parent_window):
     try:
         headers = call_groq_api(text)
         data = {
-            "model": "llama3-8b-8192",
+            "model": "llama-3.1-8b-instant",
             "messages" : [
                 {"role": "system", "content": "You are a helpful assistant that summarizes text."},
                 {"role": "user", "content": f"Summarize this text:\n{text}"}
@@ -137,13 +151,13 @@ def summarize_text(text_box, parent_window):
 def sentiment_analysis_results(text, parent_window):
     headers = call_groq_api(text)
     data = {
-    "model": "llama3-8b-8192",
-    "messages": [
-        {"role": "system", "content": "You are a helpful assistant that performs detailed sentiment analysis."},
-        {"role": "user", "content": f"Analyze the sentiment of this text. Indicate whether it is positive, negative, or neutral, and explain why:\n{text}"}
-    ],
-    "temperature": 0.3,
-    "max_tokens": 300
+        "model": "llama-3.1-8b-instant",
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant that performs detailed sentiment analysis."},
+            {"role": "user", "content": f"Analyze the sentiment of this text. Indicate whether it is positive, negative, or neutral, and explain why:\n{text}"}
+        ],
+        "temperature": 0.3,
+        "max_tokens": 300
     }
 
     try:
@@ -187,6 +201,119 @@ def analyze_sentiment(text_box, parent_window):
     thread.daemon = True
     thread.start()
 
+def generate_ai_rewrite(text, tone, max_tokens = 512):
+    headers = call_groq_api(text)
+    preset = Tone_Options.get(tone, Tone_Options["Simple"])
+    system_msg = (
+        "You are an assistant that rewrites text. "
+        "When asked to rewrite, output ONLY the rewritten text with no extra commentary or labels. "
+        "Preserve the original meaning and do not invent facts."
+    )
+    user_prompt = (
+        f"Rewrite the following text in a {tone} tone.\n\n"
+        f"Instructions: {preset['instruction']}\n\n"
+        f"Text to rewrite:\n\n{text}"
+    )
+    
+    data = {
+        "model": "llama-3.1-8b-instant",
+        "messages" : [
+            {"role": "system", "content": system_msg},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": preset["temperature"],
+        "max_tokens": max_tokens
+    }
+    
+    response = requests.post(GROQ_API_URL, headers=headers, data=json.dumps(data), timeout=60)
+    response.raise_for_status()
+    j = response.json()
+
+    return j["choices"][0]["message"]["content"].strip()
+
+def main_thread_callback(parent_window, result=None, error=None, selection_indices=None, working_window=None):
+    if working_window:
+        try:
+            working_window.destroy()
+        except tk.TclError:
+            pass
+    
+    btn_paraphrase.config(state=tk.NORMAL)
+
+    if error:
+        messagebox.showerror("Paraphrase error", f"Failed to paraphrase: {error}")
+    elif result:
+        display_paraphrase_result(parent_window, result, selection_indices)
+
+def display_paraphrase_result(parent_window, rewritten_text, selection_indices):
+    paraphrase_window = tk.Toplevel(parent_window)
+    paraphrase_window.title("Paraphrase Result")
+
+    txt = tk.Text(paraphrase_window, wrap="word", font=("Arial", 12))
+    txt.insert("1.0", rewritten_text)
+    txt.pack(expand=True, fill="both", padx=8, pady=8)
+
+    def replace_selection():
+        if selection_indices:
+            start_idx, end_idx = selection_indices
+            text_box.delete(start_idx, end_idx)
+            text_box.insert(start_idx, rewritten_text)
+        else:
+            text_box.delete("1.0", tk.END)
+            text_box.insert("1.0", rewritten_text)
+        paraphrase_window.destroy()
+
+    def insert_at_cursor():
+        text_box.insert(tk.INSERT, rewritten_text)
+        paraphrase_window.destroy()
+
+    def copy_to_clipboard():
+        window.clipboard_clear()
+        window.clipboard_append(rewritten_text)
+
+    btn_frame = tk.Frame(paraphrase_window)
+    btn_frame.pack(fill="x", pady=6)
+
+    tk.Button(btn_frame, text="Replace Selection / Document", command=replace_selection).pack(side="left", padx=6)
+    tk.Button(btn_frame, text="Insert at Cursor", command=insert_at_cursor).pack(side="left", padx=6)
+    tk.Button(btn_frame, text="Copy", command=copy_to_clipboard).pack(side="left", padx=6)
+    tk.Button(btn_frame, text="Close", command=paraphrase_window.destroy).pack(side="right", padx=6)
+
+def paraphrase_button_clicked(parent_window):
+    try:
+        sel_ranges = text_box.tag_ranges("sel")
+    except tk.TclError:
+        sel_ranges = ()
+
+    if sel_ranges:
+        start_idx, end_idx = sel_ranges
+        source_text = text_box.get(start_idx, end_idx).strip()
+        selection_indices = (start_idx, end_idx)
+    else:
+        source_text = text_box.get("1.0", tk.END).strip()
+        selection_indices = None
+
+    if not source_text:
+        messagebox.showinfo("Paraphrase", "No text selected and document is empty.")
+        return
+
+    tone = tone_dropdown.get()
+
+    btn_paraphrase.config(state=tk.DISABLED)
+    working_window = tk.Toplevel(window)
+    working_window.transient(window)
+    working_window.title("Working...")
+    tk.Label(working_window, text="Paraphrasing...").pack(padx=20, pady=20)
+    working_window.update()
+
+    def worker():
+        rewritten = generate_ai_rewrite(source_text, tone, max_tokens=1024)
+        window.after(0, lambda: main_thread_callback(parent_window=parent_window, result=rewritten, selection_indices=selection_indices, working_window=working_window))
+    
+    threading.Thread(target=worker, daemon=True).start()
+
+
+#Code for the window
 window = tk.Tk()
 window.title("Text Editor")
 window.configure(bg='#404d44')
@@ -217,6 +344,9 @@ btn_summarize.pack(side="left", padx=5, pady=5)
 btn_sentiment_analysis = tk.Button(master=fr_buttons, text="Sentiment Analysis Page", width=15, bg='#91a18d', command= lambda: analyze_sentiment(text_box, window))
 btn_sentiment_analysis.pack(side="left", padx=5, pady=5)
 
+btn_paraphrase = tk.Button(fr_buttons, text="Paraphrase", command= lambda: paraphrase_button_clicked(parent_window=window), bg="#91a18d")
+btn_paraphrase.pack(side="left", padx=5, pady=5)
+
 lbl_word_count = tk.Label(master=window, text="Words: 0")
 lbl_word_count.pack(side="bottom", anchor="e", padx=10, pady=5)
 
@@ -229,16 +359,33 @@ lbl_font.pack(side="left", padx=(15, 0), pady=5)
 lbl_color = tk.Label(master=fr_buttons, text="Color:")
 lbl_color.pack(side="left", padx=(15, 0), pady=5)
 
-font_list = ["Arial 12", "Arial 20", "TimesNewRoman 12", "TimesNewRoman 20"]
-font_dropdown = ttk.Combobox(fr_buttons, values=font_list, state="readonly")
+font_list = ["Arial 12", "Arial 20", "Comfortaa 12", "Comfortaa 20"]
+max_font_length = 0
+for font in font_list:
+    if len(font) > max_font_length:
+        max_font_length = len(font)
+font_dropdown = ttk.Combobox(fr_buttons, values=font_list, state="readonly", width=max_font_length)
 font_dropdown.set("Arial 12")
 font_dropdown.bind("<<ComboboxSelected>>", change_font)
 font_dropdown.pack(side="left", padx=5, pady=5)
 
 color_list = ["Black", "Red", "Blue", "Green", "Purple", "Yellow", "Pink", "Orange", "White", "Gray"]
-color_dropdown = ttk.Combobox(fr_buttons, values=color_list, state="readonly")
+max_color_length = 0
+for color in color_list:
+    if len(color) > max_color_length:
+        max_color_length = len(color)
+color_dropdown = ttk.Combobox(fr_buttons, values=color_list, state="readonly", width=max_color_length)
 color_dropdown.set("Black")
 color_dropdown.bind("<<ComboboxSelected>>", change_color)
 color_dropdown.pack(side="left", padx=5, pady=5)
+
+max_tone_length = 0
+tone_list = Tone_Options.keys()
+for tone in tone_list:
+    if len(tone) > max_tone_length:
+        max_tone_length = len(tone)
+tone_dropdown = ttk.Combobox(fr_buttons, values=list(Tone_Options.keys()), state="readonly", width=max_tone_length)
+tone_dropdown.set("Simple")
+tone_dropdown.pack(side="left", padx=5, pady=5)
 
 window.mainloop()
