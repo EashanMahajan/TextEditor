@@ -1,6 +1,7 @@
 import re
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 from groq import Groq
 import os
 from dotenv import load_dotenv, find_dotenv
@@ -33,6 +34,8 @@ Tone_Options = {
 window = tk.Tk()
 text_box = tk.Text(master=window, font="Arial 12", bg="#e6f0e9", fg="black")
 btn_paraphrase = None
+btn_ai = None
+ai_features_dropdown = None
 tone_dropdown = None
 lbl_word_count = None
 lbl_char_count = None
@@ -47,8 +50,22 @@ def count(event):
     lbl_word_count["text"] = "Word count:\n " + str(w_count)
     lbl_char_count["text"] = "Characters:\n " + str(len(words))
 
+
+def choose_ai_feature():
+    global ai_features_dropdown
+    action = ai_features_dropdown.get()
+
+    if action == "Summarize":
+        ai_features.summarize_text()
+    elif action == "Sentimental Analysis":
+        ai_features.analyze_sentiment()
+    elif action == "Paraphrase":
+        ai_features.paraphrase_button_clicked(parent_window=window)
+    else:
+        messagebox.showwarning("Selection Error", "Please select an AI feature from the dropdown.")
+
 def ui_configuration():
-    global btn_paraphrase, tone_dropdown, lbl_word_count, lbl_char_count, lbl_font, font_dropdown, lbl_color, color_dropdown
+    global btn_paraphrase, tone_dropdown, lbl_word_count, lbl_char_count, lbl_font, font_dropdown, lbl_color, color_dropdown, ai_features_dropdown, btn_ai
 
     window.title("Text Editor")
     window.configure(bg='#404d44')
@@ -70,15 +87,6 @@ def ui_configuration():
 
     btn_save = tk.Button(master=fr_buttons, text="Save", width=10, bg="#91a18d", command=file_operations.save_file)
     btn_save.pack(side="left", padx=5, pady=5)
-
-    btn_summarize = tk.Button(master=fr_buttons, text="Summarize Page", width=10, bg='#91a18d', command= lambda: ai_features.summarize_text(text_box, window))
-    btn_summarize.pack(side="left", padx=5, pady=5)
-
-    btn_sentiment_analysis = tk.Button(master=fr_buttons, text="Sentiment Analysis Page", width=15, bg='#91a18d', command= lambda: ai_features.analyze_sentiment(text_box, window))
-    btn_sentiment_analysis.pack(side="left", padx=5, pady=5)
-
-    btn_paraphrase = tk.Button(fr_buttons, text="Paraphrase", command= lambda: ai_features.paraphrase_button_clicked(parent_window=window), bg="#91a18d")
-    btn_paraphrase.pack(side="left", padx=5, pady=5)
 
     status_frame = tk.Frame(master=window)
     status_frame.pack(side="bottom", anchor="e", padx=10,pady=5)
@@ -123,11 +131,23 @@ def ui_configuration():
     tone_dropdown.set("Simple")
     tone_dropdown.pack(side="left", padx=5, pady=5)
 
+    ai_features_list = ["Summarize", "Sentimental Analysis", "Paraphrase"]
+    max_feature_length = 0
+    for feature in ai_features_list:
+        if len(feature) > max_feature_length:
+            max_feature_length = len(feature)
+    ai_features_dropdown = ttk.Combobox(fr_buttons, values=ai_features_list, state="readonly", width=max_feature_length)
+    ai_features_dropdown.set("Summarize")
+    ai_features_dropdown.pack(side="left", padx=5, pady=5)
+
+    btn_ai = tk.Button(fr_buttons, text="Go", width=5, bg='#91a18d', command=choose_ai_feature)
+    btn_ai.pack(side="left", padx=5, pady=5)
+
 def main():
     ui_configuration()
     utils.utils_references(text_box, window, font_dropdown, color_dropdown, lbl_font, lbl_color)
     file_operations.references(text_box, window)
-    ai_features.ai_references(GROQ_API_KEY, GROQ_API_URL, Tone_Options, window, text_box, btn_paraphrase, tone_dropdown)
+    ai_features.ai_references(GROQ_API_KEY, GROQ_API_URL, Tone_Options, window, text_box, tone_dropdown, btn_ai)
     window.mainloop()
 
 if __name__ == "__main__":

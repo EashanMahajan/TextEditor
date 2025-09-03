@@ -4,37 +4,46 @@ import json
 import requests
 import threading
 
+# These module-level variables will be populated by the `ai_references` function.
 GROQ_API_KEY = None
 GROQ_API_URL = None
 Tone_Options = None
 window = None
 text_box = None
-btn_paraphrase = None
 tone_dropdown = None
+ai_features_dropdown = None
+btn_ai = None
 
-def ai_references(api_key, api_url, tone_choices, wd, tb, paraphrase, tone_menu):
-    global GROQ_API_KEY, GROQ_API_URL, Tone_Options, window, text_box, btn_paraphrase, tone_dropdown
+def ai_references(api_key, api_url, tone_choices, wd, tb, tone_menu, ai):
+    global GROQ_API_KEY, GROQ_API_URL, Tone_Options, window, text_box, tone_dropdown, ai_features_dropdown, btn_ai
     GROQ_API_KEY = api_key
     GROQ_API_URL = api_url
     Tone_Options = tone_choices
     window = wd
     text_box = tb
-    btn_paraphrase = paraphrase
     tone_dropdown = tone_menu
+    btn_ai = ai
 
-def call_groq_api(text):
+def _call_groq_api(text):
     if not GROQ_API_KEY:
         raise ValueError("GROQ_API_KEY not found. Please set the environment variable.")
-
     headers = {
-        "Authorization":f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {GROQ_API_KEY}",
         "Content-Type": "application/json"
     }
     return headers
 
-def summary_results(text, parent_window):
+def _summary_thread_callback(summary=None, error=None):
+    """Callback for the main thread to handle summary results and re-enable the button."""
+    btn_ai.config(state=tk.NORMAL)
+    if error:
+        messagebox.showerror("Summarization Error", error)
+    elif summary:
+        _display_summary_window(window, summary)
+
+def _summary_results(text):
     try:
-        headers = call_groq_api(text)
+        headers = _call_groq_api(text)
         data = {
             "model": "llama-3.1-8b-instant",
             "messages" : [
@@ -49,19 +58,13 @@ def summary_results(text, parent_window):
 
         result = response.json()
         summary = result["choices"][0]["message"]["content"]
-
-        parent_window.after(0, lambda: display_summary_window(parent_window, summary))
-
-    except ValueError as e:
-        messagebox.showerror("Error", str(e))
-    except requests.exceptions.RequestException as e:
-        messagebox.showerror("Network Error", f"Failed to connect to the API: {e}")
-    except KeyError:
-        messagebox.showerror("API Error", "The API response was not in the expected format.")
+        window.after(0, lambda: _summary_thread_callback(summary=summary))
+    except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+        window.after(0, lambda: _summary_thread_callback(error=str(e)))
     except Exception as e:
-        messagebox.showerror("An unexpected error occurred", f"Failed to summarize: {e}")
+        window.after(0, lambda: _summary_thread_callback(error=f"An unexpected error occurred: {e}"))
 
-def display_summary_window(parent_window, summary):
+def _display_summary_window(parent_window, summary):
     summary_window = tk.Toplevel(parent_window)
     summary_window.title("Summary")
 
@@ -75,46 +78,49 @@ def display_summary_window(parent_window, summary):
     summary_text.pack(side="left", expand=True, fill="both")
     scrollbar.pack(side="right", fill="y")
 
-def summarize_text(text_box, parent_window):
+def summarize_text():
     text = text_box.get("1.0", tk.END).strip()
     if not text:
         messagebox.showwarning("There is no text to summarize.")
-        return 0
+        return
 
-    thread = threading.Thread(target=summary_results, args=(text, parent_window))
+    btn_ai.config(state=tk.DISABLED)
+    thread = threading.Thread(target=_summary_results, args=(text,))
     thread.daemon = True
     thread.start()
 
-def sentiment_analysis_results(text, parent_window):
-    headers = call_groq_api(text)
-    data = {
-        "model": "llama-3.1-8b-instant",
-        "messages": [
-            {"role": "system", "content": "You are a helpful assistant that performs detailed sentiment analysis."},
-            {"role": "user", "content": f"Analyze the sentiment of this text. Indicate whether it is positive, negative, or neutral, and explain why:\n{text}"}
-        ],
-        "temperature": 0.3,
-        "max_tokens": 300
-    }
+def _sentiment_thread_callback(sentiment=None, error=None):
+    btn_ai.config(state=tk.NORMAL)
+    if error:
+        messagebox.showerror("Sentiment Analysis Error", error)
+    elif sentiment:
+        _display_sentiment_window(window, sentiment)
 
+def _sentiment_analysis_results(text):
     try:
+        headers = _call_groq_api(text)
+        data = {
+            "model": "llama-3.1-8b-instant",
+            "messages": [
+                {"role": "system", "content": "You are a helpful assistant that performs detailed sentiment analysis."},
+                {"role": "user", "content": f"Analyze the sentiment of this text. Indicate whether it is positive, negative, or neutral, and explain why:\n{text}"}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 300
+        }
+
         response = requests.post(GROQ_API_URL, headers=headers, data=json.dumps(data))
         response.raise_for_status()
 
         result = response.json()
         sentiment = result["choices"][0]["message"]["content"]
-        parent_window.after(0, lambda: display_sentiment_window(parent_window, sentiment))
-    except ValueError as e:
-        messagebox.showerror("Error", str(e))
-    except requests.exceptions.RequestException as e:
-        messagebox.showerror("Network Error", f"Failed to connect to the API: {e}")
-    except KeyError:
-        messagebox.showerror("API Error", "The API response was not in the expected format.")
+        window.after(0, lambda: _sentiment_thread_callback(sentiment=sentiment))
+    except (requests.exceptions.RequestException, ValueError, KeyError) as e:
+        window.after(0, lambda: _sentiment_thread_callback(error=str(e)))
     except Exception as e:
-        messagebox.showerror("An unexpected error occurred", f"Failed to analyze: {e}")
+        window.after(0, lambda: _sentiment_thread_callback(error=f"An unexpected error occurred: {e}"))
 
-
-def display_sentiment_window(parent_window, analysis):
+def _display_sentiment_window(parent_window, analysis):
     analysis_window = tk.Toplevel(parent_window)
     analysis_window.title("Sentiment Analysis")
 
@@ -128,18 +134,19 @@ def display_sentiment_window(parent_window, analysis):
     analysis_text.pack(side="left", expand=True, fill="both")
     scrollbar.pack(side="right", fill="y")
 
-def analyze_sentiment(text_box, parent_window):
+def analyze_sentiment():
     text = text_box.get("1.0", tk.END).strip()
     if not text:
         messagebox.showwarning("There is no text to analyze for sentiment.")
-        return 0
+        return
 
-    thread = threading.Thread(target=sentiment_analysis_results, args=(text, parent_window))
+    btn_ai.config(state=tk.DISABLED)
+    thread = threading.Thread(target=_sentiment_analysis_results, args=(text,))
     thread.daemon = True
     thread.start()
 
 def generate_ai_rewrite(text, tone, max_tokens = 512):
-    headers = call_groq_api(text)
+    headers = _call_groq_api(text)
     preset = Tone_Options.get(tone, Tone_Options["Simple"])
     system_msg = (
         "You are an assistant that rewrites text. "
@@ -175,7 +182,7 @@ def main_thread_callback(parent_window, result=None, error=None, selection_indic
         except tk.TclError:
             pass
     
-    btn_paraphrase.config(state=tk.NORMAL)
+    btn_ai.config(state=tk.NORMAL)
 
     if error:
         messagebox.showerror("Paraphrase error", f"Failed to paraphrase: {error}")
@@ -236,7 +243,7 @@ def paraphrase_button_clicked(parent_window):
 
     tone = tone_dropdown.get()
 
-    btn_paraphrase.config(state=tk.DISABLED)
+    btn_ai.config(state=tk.DISABLED)
     working_window = tk.Toplevel(window)
     working_window.transient(window)
     working_window.title("Working...")
@@ -244,7 +251,10 @@ def paraphrase_button_clicked(parent_window):
     working_window.update()
 
     def worker():
-        rewritten = generate_ai_rewrite(source_text, tone, max_tokens=1024)
-        window.after(0, lambda: main_thread_callback(parent_window=parent_window, result=rewritten, selection_indices=selection_indices, working_window=working_window))
+        try:
+            rewritten = generate_ai_rewrite(source_text, tone, max_tokens=1024)
+            window.after(0, lambda: main_thread_callback(parent_window=parent_window, result=rewritten, selection_indices=selection_indices, working_window=working_window))
+        except Exception as e:
+            window.after(0, lambda: main_thread_callback(parent_window=parent_window, error=str(e), working_window=working_window))
     
     threading.Thread(target=worker, daemon=True).start()
