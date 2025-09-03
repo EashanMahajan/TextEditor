@@ -3,3 +3,4 @@ main.spec
 build/
 dist/
 requirements.txt
+__pycache__/
