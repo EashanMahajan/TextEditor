@@ -4,7 +4,6 @@ import json
 import requests
 import threading
 
-# These module-level variables will be populated by the `ai_references` function.
 GROQ_API_KEY = None
 GROQ_API_URL = None
 Tone_Options = None
