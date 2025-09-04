@@ -4,7 +4,6 @@ import json
 import requests
 import threading
 
-# These module-level variables will be populated by the `ai_references` function.
 GROQ_API_KEY = None
 GROQ_API_URL = None
 Tone_Options = None
@@ -33,15 +32,15 @@ def _call_groq_api(text):
     }
     return headers
 
-def _summary_thread_callback(summary=None, error=None):
+def summary_thread_callback(summary=None, error=None):
     """Callback for the main thread to handle summary results and re-enable the button."""
     btn_ai.config(state=tk.NORMAL)
     if error:
         messagebox.showerror("Summarization Error", error)
     elif summary:
-        _display_summary_window(window, summary)
+        display_summary_window(window, summary)
 
-def _summary_results(text):
+def summary_results(text):
     try:
         headers = _call_groq_api(text)
         data = {
@@ -58,13 +57,13 @@ def _summary_results(text):
 
         result = response.json()
         summary = result["choices"][0]["message"]["content"]
-        window.after(0, lambda: _summary_thread_callback(summary=summary))
+        window.after(0, lambda: summary_thread_callback(summary=summary))
     except (requests.exceptions.RequestException, ValueError, KeyError) as e:
-        window.after(0, lambda: _summary_thread_callback(error=str(e)))
+        window.after(0, lambda: summary_thread_callback(error=str(e)))
     except Exception as e:
-        window.after(0, lambda: _summary_thread_callback(error=f"An unexpected error occurred: {e}"))
+        window.after(0, lambda: summary_thread_callback(error=f"An unexpected error occurred: {e}"))
 
-def _display_summary_window(parent_window, summary):
+def display_summary_window(parent_window, summary):
     summary_window = tk.Toplevel(parent_window)
     summary_window.title("Summary")
 
@@ -85,18 +84,18 @@ def summarize_text():
         return
 
     btn_ai.config(state=tk.DISABLED)
-    thread = threading.Thread(target=_summary_results, args=(text,))
+    thread = threading.Thread(target=summary_results, args=(text,))
     thread.daemon = True
     thread.start()
 
-def _sentiment_thread_callback(sentiment=None, error=None):
+def sentiment_thread_callback(sentiment=None, error=None):
     btn_ai.config(state=tk.NORMAL)
     if error:
         messagebox.showerror("Sentiment Analysis Error", error)
     elif sentiment:
-        _display_sentiment_window(window, sentiment)
+        display_sentiment_window(window, sentiment)
 
-def _sentiment_analysis_results(text):
+def sentiment_analysis_results(text):
     try:
         headers = _call_groq_api(text)
         data = {
@@ -114,13 +113,13 @@ def _sentiment_analysis_results(text):
 
         result = response.json()
         sentiment = result["choices"][0]["message"]["content"]
-        window.after(0, lambda: _sentiment_thread_callback(sentiment=sentiment))
+        window.after(0, lambda: sentiment_thread_callback(sentiment=sentiment))
     except (requests.exceptions.RequestException, ValueError, KeyError) as e:
-        window.after(0, lambda: _sentiment_thread_callback(error=str(e)))
+        window.after(0, lambda: sentiment_thread_callback(error=str(e)))
     except Exception as e:
-        window.after(0, lambda: _sentiment_thread_callback(error=f"An unexpected error occurred: {e}"))
+        window.after(0, lambda: sentiment_thread_callback(error=f"An unexpected error occurred: {e}"))
 
-def _display_sentiment_window(parent_window, analysis):
+def display_sentiment_window(parent_window, analysis):
     analysis_window = tk.Toplevel(parent_window)
     analysis_window.title("Sentiment Analysis")
 
@@ -141,7 +140,7 @@ def analyze_sentiment():
         return
 
     btn_ai.config(state=tk.DISABLED)
-    thread = threading.Thread(target=_sentiment_analysis_results, args=(text,))
+    thread = threading.Thread(target=sentiment_analysis_results, args=(text,))
     thread.daemon = True
     thread.start()
 

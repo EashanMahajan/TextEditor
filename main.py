@@ -43,13 +43,21 @@ lbl_font = None
 font_dropdown = None
 lbl_color = None
 color_dropdown = None
+format_dropdown = None
+lbl_format = None
+
+def max_length(list_choice):
+    max_length = 0
+    for choice in list_choice:
+        if len(choice) > max_length:
+            max_length = len(choice)
+    return max_length
 
 def count(event):
     words = text_box.get("1.0", "end-1c")
     w_count = len(re.findall(r'\w+', words))
     lbl_word_count["text"] = "Word count:\n " + str(w_count)
     lbl_char_count["text"] = "Characters:\n " + str(len(words))
-
 
 def choose_ai_feature():
     global ai_features_dropdown
@@ -65,7 +73,7 @@ def choose_ai_feature():
         messagebox.showwarning("Selection Error", "Please select an AI feature from the dropdown.")
 
 def ui_configuration():
-    global btn_paraphrase, tone_dropdown, lbl_word_count, lbl_char_count, lbl_font, font_dropdown, lbl_color, color_dropdown, ai_features_dropdown, btn_ai
+    global btn_paraphrase, tone_dropdown, lbl_word_count, lbl_char_count, lbl_font, font_dropdown, lbl_color, color_dropdown, ai_features_dropdown, btn_ai, lbl_format, format_dropdown
 
     window.title("Text Editor")
     window.configure(bg='#404d44')
@@ -103,39 +111,26 @@ def ui_configuration():
     lbl_color.pack(side="left", padx=(15, 0), pady=5)
 
     font_list = ["Arial 12", "Arial 20", "Comfortaa 12", "Comfortaa 20"]
-    max_font_length = 0
-    for font in font_list:
-        if len(font) > max_font_length:
-            max_font_length = len(font)
+    max_font_length = max_length(font_list)
     font_dropdown = ttk.Combobox(fr_buttons, values=font_list, state="readonly", width=max_font_length)
     font_dropdown.set("Arial 12")
     font_dropdown.bind("<<ComboboxSelected>>", utils.change_font)
     font_dropdown.pack(side="left", padx=5, pady=5)
 
     color_list = ["Black", "Red", "Blue", "Green", "Purple", "Yellow", "Pink", "Orange", "White", "Gray"]
-    max_color_length = 0
-    for color in color_list:
-        if len(color) > max_color_length:
-            max_color_length = len(color)
+    max_color_length = max_length(color_list)
     color_dropdown = ttk.Combobox(fr_buttons, values=color_list, state="readonly", width=max_color_length)
     color_dropdown.set("Black")
     color_dropdown.bind("<<ComboboxSelected>>", utils.change_color)
     color_dropdown.pack(side="left", padx=5, pady=5)
 
-    max_tone_length = 0
-    tone_list = Tone_Options.keys()
-    for tone in tone_list:
-        if len(tone) > max_tone_length:
-            max_tone_length = len(tone)
+    max_tone_length = max_length(Tone_Options.keys())
     tone_dropdown = ttk.Combobox(fr_buttons, values=list(Tone_Options.keys()), state="readonly", width=max_tone_length)
     tone_dropdown.set("Simple")
     tone_dropdown.pack(side="left", padx=5, pady=5)
 
     ai_features_list = ["Summarize", "Sentimental Analysis", "Paraphrase"]
-    max_feature_length = 0
-    for feature in ai_features_list:
-        if len(feature) > max_feature_length:
-            max_feature_length = len(feature)
+    max_feature_length = max_length(ai_features_list)
     ai_features_dropdown = ttk.Combobox(fr_buttons, values=ai_features_list, state="readonly", width=max_feature_length)
     ai_features_dropdown.set("Summarize")
     ai_features_dropdown.pack(side="left", padx=5, pady=5)
@@ -143,9 +138,18 @@ def ui_configuration():
     btn_ai = tk.Button(fr_buttons, text="Go", width=5, bg='#91a18d', command=choose_ai_feature)
     btn_ai.pack(side="left", padx=5, pady=5)
 
+    lbl_format = tk.Label(master=fr_buttons, text="Format")
+    lbl_format.pack(side="left", padx=5, pady=5)
+    format_list = ["Bullet List", "Numbered List"]
+    max_format_length = max_length(format_list)
+    format_dropdown = ttk.Combobox(fr_buttons, values=format_list, state="readonly", width=max_format_length)
+    format_dropdown.set("Bulleted List")
+    format_dropdown.pack(side="left", padx=5, pady=5)
+    format_dropdown.bind("<<ComboboxSelected>>", utils.format_action)
+
 def main():
     ui_configuration()
-    utils.utils_references(text_box, window, font_dropdown, color_dropdown, lbl_font, lbl_color)
+    utils.utils_references(text_box, window, font_dropdown, color_dropdown, lbl_font, lbl_color, format_dropdown, lbl_format)
     file_operations.references(text_box, window)
     ai_features.ai_references(GROQ_API_KEY, GROQ_API_URL, Tone_Options, window, text_box, tone_dropdown, btn_ai)
     window.mainloop()
